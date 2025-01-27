@@ -47,11 +47,8 @@ ollama models list
 ollama pull deepseek-r1:14b
 ```
 
-### 3. 配置环境变量
 
-确保在你的本地环境中正确配置了 `Ollama` 的API密钥和相关环境变量。通常，`Ollama` 会在安装过程中自动配置。
-
-### 4. 运行程序
+### 3. 运行程序
 
 在本地配置好 `Ollama` 模型之后，可以直接运行程序：
 
