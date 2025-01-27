@@ -5,6 +5,7 @@ import re
 import socket
 import threading
 import akshare as ak
+from datetime import datetime, timedelta
 
 messages = [{'role': 'user', 'content': "你是一个股票助手，请用简短的语言回答问题"}]
 
@@ -25,18 +26,43 @@ def get_stock_info(stock_code):
             info['turnover'] = stock_real['换手率'].values[0]
             info['pe'] = stock_real['市盈率-动态'].values[0]
 
-        # 获取K线数据
-        df_hist = ak.stock_zh_a_hist(symbol=stock_code, period="daily",
-                                     start_date='20240101', adjust="qfq")
+        # 获取50日K线数据
+        df_hist = ak.stock_zh_a_hist(
+            symbol=stock_code,
+            period="daily",
+            start_date=(datetime.now() - timedelta(days=70)).strftime('%Y%m%d'),
+            adjust="qfq"
+        )
         if not df_hist.empty:
-            recent = df_hist.tail(5)
+            recent50 = df_hist.tail(50)
+            recent5 = df_hist.tail(5)
+
+            # 5日数据
             info['daily_data'] = {
-                'dates': recent['日期'].tolist(),
-                'prices': recent['收盘'].tolist(),
-                'volumes': recent['成交量'].tolist(),
-                'highs': recent['最高'].tolist(),
-                'lows': recent['最低'].tolist()
+                'dates': recent5['日期'].tolist(),
+                'prices': recent5['收盘'].tolist(),
+                'volumes': recent5['成交量'].tolist(),
+                'highs': recent5['最高'].tolist(),
+                'lows': recent5['最低'].tolist()
             }
+
+            # 50日数据
+            info['historical_data'] = {
+                'dates': recent50['日期'].tolist(),
+                'prices': recent50['收盘'].tolist(),
+                'volumes': recent50['成交量'].tolist(),
+                'highs': recent50['最高'].tolist(),
+                'lows': recent50['最低'].tolist(),
+                'avg_price': recent50['收盘'].mean(),
+                'max_price': recent50['最高'].max(),
+                'min_price': recent50['最低'].min(),
+                'avg_volume': recent50['成交量'].mean()
+            }
+
+            # 计算区间涨跌幅
+            start_price = recent50['收盘'].iloc[0]
+            end_price = recent50['收盘'].iloc[-1]
+            info['historical_data']['change_rate'] = ((end_price - start_price) / start_price) * 100
 
         # 获取主力资金流向
         try:
@@ -189,6 +215,41 @@ def generate_prompt(user_input, stock_info=None):
    - 中期展望
 
 请用专业但通俗的语言给出分析结论。"""
+
+        # 添加50日历史数据分析
+        historical_data = stock_info.get('historical_data', {})
+        historical_analysis = f"""
+【50日历史数据分析】
+区间涨跌幅：{historical_data.get('change_rate', '未知')}%
+平均价格：{historical_data.get('avg_price', '未知')}元
+最高价：{historical_data.get('max_price', '未知')}元
+最低价：{historical_data.get('min_price', '未知')}元
+平均成交量：{historical_data.get('avg_volume', '未知')}
+
+【价格分布】
+最近50个交易日价格走势：
+{historical_data.get('prices', ['未知'])}
+
+【成交量分布】
+最近50个交易日成交量走势：
+{historical_data.get('volumes', ['未知'])}
+
+请补充以下分析维度：
+9. 中期趋势分析（50日）
+   - 价格运行区间
+   - 成交量变化特征
+   - 支撑压力位判断
+10. 波动特征分析
+    - 振幅特征
+    - 成交量特征
+    - 涨跌规律
+11. 历史统计分析
+    - 价格分布特征
+    - 成交量分布特征
+    - 涨跌周期规律"""
+
+        base_prompt = f"{base_prompt}\n{historical_analysis}"
+
     else:
         base_prompt = f"""作为专业的股票分析师，请回答以下问题：{user_input}
 如果涉及具体股票，请说明缺乏实时数据，无法进行具体分析。"""

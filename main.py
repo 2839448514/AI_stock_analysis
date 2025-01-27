@@ -6,6 +6,7 @@ import socket
 import threading
 import akshare as ak
 from datetime import datetime, timedelta
+import numpy as np
 
 messages = [{'role': 'user', 'content': "你是一个股票助手，请用简短的语言回答问题"}]
 
@@ -156,100 +157,60 @@ def calculate_technical_indicators(stock_info):
 def generate_prompt(user_input, stock_info=None):
     """生成更专业的AI提示"""
     if stock_info and 'error' not in stock_info:
-        # 计算技术指标
+        # 获取基础数据
         technical = calculate_technical_indicators(stock_info)
-        # 分析市场情绪
         sentiment = analyze_market_sentiment(stock_info)
+        historical_data = stock_info.get('historical_data', {})
 
-        base_prompt = f"""作为专业的股票分析师，请基于以下详细数据进行深入分析：
+        base_prompt = f"""作为专业的股票分析师，请基于以下数据进行深入分析并给出具体建议：
 
-【基础行情】
-股票：{stock_info.get('name', '未知')}
-最新价：{stock_info.get('price', '未知')}元  |  涨跌幅：{stock_info.get('change', '未知')}%
-换手率：{stock_info.get('turnover', '未知')}%  |  市盈率：{stock_info.get('pe', '未知')}
-
-【技术指标】
+【基础行情与技术面】
+股票：{stock_info.get('name', '未知')}({stock_info.get('code', '未知')})
+最新价：{stock_info.get('price', '未知')}元
+涨跌幅：{stock_info.get('change', '未知')}%
+换手率：{stock_info.get('turnover', '未知')}%
+市盈率：{stock_info.get('pe', '未知')}
 5日均价：{technical.get('MA5', '未知')}
-振幅：{technical.get('amplitude', '未知')}%
-量比：{technical.get('volume_ratio', '未知')}
+50日均价：{historical_data.get('avg_price', '未知')}元
 
-【成交信息】
-成交量：{stock_info.get('volume', '未知')}  
-成交额：{stock_info.get('amount', '未知')}
+【历史区间】(50日数据)
+最高价：{historical_data.get('max_price', '未知')}元
+最低价：{historical_data.get('min_price', '未知')}元
+区间涨跌幅：{historical_data.get('change_rate', '未知')}%
+价格走势：{historical_data.get('prices', ['未知'])[-10:]}（显示最近10日）
 
-【K线数据】(近5日)
-日期：{stock_info.get('daily_data', {}).get('dates', [])}
-价格：{stock_info.get('daily_data', {}).get('prices', [])}
-最高：{stock_info.get('daily_data', {}).get('highs', [])}
-最低：{stock_info.get('daily_data', {}).get('lows', [])}
-
-【资金数据】
+【市场资金】
 主力净流入：{stock_info.get('fund_flow', {}).get('main_net', '未知')}
 散户净流入：{stock_info.get('fund_flow', {}).get('retail_net', '未知')}
+市场情绪：{' '.join(sentiment)}
 
 【机构评级】
 覆盖机构数：{stock_info.get('ratings', {}).get('count', '未知')}
 平均目标价：{stock_info.get('ratings', {}).get('avg_target', '未知')}
 
-【市场情绪】
-{' '.join(sentiment)}
-
 用户问题：{user_input}
 
-请从以下维度进行专业分析：
-1. 技术面分析
-   - 价格形态与趋势判断
-   - 量价配合分析
-   - 支撑与压力位判断
-2. 基本面评估
-   - 估值水平分析
-   - 机构评级解读
-3. 资金面分析
-   - 主力资金动向
-   - 市场情绪研判
-4. 风险提示
-   - 技术风险
-   - 市场风险
-5. 操作建议
-   - 短期策略
-   - 中期展望
+请基于以上数据，从专业角度给出以下分析：
 
-请用专业但通俗的语言给出分析结论。"""
+1. 技术面研判
+   - 目前处于什么位置（相对高低位）
+   - 支撑位和压力位在哪里，依据是什么
+   - 短期趋势研判
 
-        # 添加50日历史数据分析
-        historical_data = stock_info.get('historical_data', {})
-        historical_analysis = f"""
-【50日历史数据分析】
-区间涨跌幅：{historical_data.get('change_rate', '未知')}%
-平均价格：{historical_data.get('avg_price', '未知')}元
-最高价：{historical_data.get('max_price', '未知')}元
-最低价：{historical_data.get('min_price', '未知')}元
-平均成交量：{historical_data.get('avg_volume', '未知')}
+2. 交易建议
+   - 给出明确的买入区间建议价位
+   - 给出目标价和止损价
+   - 说明建议持仓时间
+   - 建议仓位配置
+   
+3. 风险提示
+   - 列出主要风险点
+   - 哪些情况要立即止损
 
-【价格分布】
-最近50个交易日价格走势：
-{historical_data.get('prices', ['未知'])}
+请用专业但通俗的语言回答，给出明确的数字建议。
+所有建议均应该基于专业分析，而不是机械计算。
+注意：建议仅供参考，投资者需承担风险。"""
 
-【成交量分布】
-最近50个交易日成交量走势：
-{historical_data.get('volumes', ['未知'])}
-
-请补充以下分析维度：
-9. 中期趋势分析（50日）
-   - 价格运行区间
-   - 成交量变化特征
-   - 支撑压力位判断
-10. 波动特征分析
-    - 振幅特征
-    - 成交量特征
-    - 涨跌规律
-11. 历史统计分析
-    - 价格分布特征
-    - 成交量分布特征
-    - 涨跌周期规律"""
-
-        base_prompt = f"{base_prompt}\n{historical_analysis}"
-        
     else:
         base_prompt = f"""作为专业的股票分析师，请回答以下问题：{user_input}
 如果涉及具体股票，请说明缺乏实时数据，无法进行具体分析。"""
